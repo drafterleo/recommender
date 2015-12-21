@@ -1,0 +1,128 @@
+import numpy as np
+from math import sqrt
+
+
+def gen_data_table(n_users, n_items):
+    p0 = 0.4
+    pn = (1 - p0)/5
+    data_table = np.random.choice([0.0, 1, 2, 3, 4, 5],
+                                  n_users * n_items,
+                                  p=[p0, pn, pn, pn, pn, pn])
+    return data_table.reshape(n_users, n_items)
+
+
+def get_item_vector(data, item):
+    return data[:, item]
+
+
+def get_user_vector(data, user):
+    return data[user]
+
+
+def get_vector_mean(vector):
+    return vector[vector > 0].mean()
+
+
+def get_inersection_of_vectors(vector_a, vector_b):
+    joints = 0
+    for i in range(min(len(vector_a), len(vector_b))):
+        if vector_a[i] != 0 and vector_b[i] != 0:
+            joints += 1
+    return joints
+
+
+def sim_cos(vector_a, vector_b):
+    dot_prod = 0.0
+    magn_a = 0.0
+    magn_b = 0.0
+    mean_a = get_vector_mean(vector_a)
+    mean_b = get_vector_mean(vector_b)
+    min_vector_len = min(len(vector_a), len(vector_b))
+    joint_factor = get_inersection_of_vectors(vector_a, vector_b) / min_vector_len
+    for i in range(min_vector_len):
+        if vector_a[i] != 0 and vector_b[i] != 0:
+            a = (vector_a[i] - mean_a) * joint_factor
+            b = (vector_b[i] - mean_b) * joint_factor
+            magn_a += a ** 2
+            magn_b += b ** 2
+            dot_prod += a * b
+    #print(dot_prod, magn_a, magn_b, mean_a, mean_b)
+    denominator = sqrt(magn_a * magn_b)
+    if denominator == 0:
+        return 0.0
+    else:
+        return dot_prod / denominator
+
+
+def item_sim(data, item_a, item_b):
+    return sim_cos(data[:, item_a], data[:, item_b])
+
+
+def user_sim(data, user_a, user_b):
+    return sim_cos(data[user_a], data[user_b])
+
+
+def most_similar_users(data, person, number_of_users=5):
+    scores = [(user_sim(data, person, other_person), other_person)
+              for other_person in range(len(data)) if other_person != person
+             ]
+    scores.sort(reverse=True)
+    # scores.reverse()
+    return scores[0:number_of_users]
+
+
+def most_similar_items(data, item, number_of_items=5):
+    scores = [(item_sim(data, item, other_item), other_item)
+              for other_item in range(len(data[0])) if other_item != item
+             ]
+    scores.sort(reverse=True)
+    #scores.reverse()
+    return scores[0:number_of_items]
+
+
+def recommendations_by_items(data, person, max_similar_items=7):
+    user_vector = get_user_vector(data, person)
+    recommendations = []
+    zero_items = np.argwhere(user_vector == 0).ravel()
+    rated_items = np.argwhere(user_vector != 0).ravel()
+    for i in zero_items:
+        sum_sim = 0.0
+        sum_sim_weight = 0.0
+        most_rated_items = sorted(rated_items, key=lambda x: item_sim(data, x, i), reverse=True)
+        if len(most_rated_items) > max_similar_items:
+            most_rated_items = most_rated_items[0:max_similar_items]
+        # print(i, rated_items)
+        for j in most_rated_items:
+            sim = item_sim(data, i, j)
+            if sim > 0:
+                sum_sim += sim
+                sum_sim_weight += sim * user_vector[j]
+        rating = 0.0
+        if sum_sim > 0:
+            rating = sum_sim_weight / sum_sim
+        recommendations.append((rating, i))
+    recommendations.sort(reverse=True)
+    return recommendations
+
+
+def test_recommender():
+    rating_data = gen_data_table(n_users=10, n_items=15)
+    print(rating_data)
+
+    # print(get_item_vector(rating_data, 1))
+    # print(get_item_vector(rating_data, 3))
+    # print(item_sim(rating_data, 1, 3))
+
+    curr_user = 0
+    for similar_user in most_similar_users(rating_data, curr_user, 5):
+        print("user [%d] (%f)" % (similar_user[1], similar_user[0]))
+        curr_user_vector = get_user_vector(rating_data, curr_user)
+        similar_user_vector = get_user_vector(rating_data, similar_user[1])
+        print("   ", curr_user_vector, get_vector_mean(curr_user_vector))
+        print("   ", similar_user_vector, get_vector_mean(similar_user_vector))
+
+    print("\n item-item recommendations for user %d: \n" % curr_user,
+          recommendations_by_items(rating_data, curr_user, max_similar_items=10))
+
+if __name__ == '__main__':
+    test_recommender()
