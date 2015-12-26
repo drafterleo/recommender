@@ -1,6 +1,6 @@
 import numpy as np
 from math import sqrt
-
+#from numba import jit
 
 def gen_data_table(n_users, n_items):
     p0 = 0.4
@@ -63,11 +63,12 @@ def user_sim(data, user_a, user_b):
 
 
 def most_similar_users(data, person, number_of_users=5):
+    if number_of_users >= len(data):
+        number_of_users = len(data) - 2
     scores = [(user_sim(data, person, other_person), other_person)
               for other_person in range(len(data)) if other_person != person
              ]
     scores.sort(reverse=True)
-    # scores.reverse()
     return scores[0:number_of_users]
 
 
@@ -76,27 +77,69 @@ def most_similar_items(data, item, number_of_items=5):
               for other_item in range(len(data[0])) if other_item != item
              ]
     scores.sort(reverse=True)
-    #scores.reverse()
     return scores[0:number_of_items]
 
+def base_line_estimation(data, user, item, avg=float("nan")):
+   if avg == float("nan"):
+       avg = np.sum(data)/np.count_nonzero(data)
+   user_vector = get_user_vector(data, user)
+   item_vector = get_item_vector(data, item)
+   avg_user = np.sum(user_vector)/np.count_nonzero(user_vector)
+   avg_item = np.sum(item_vector)/np.count_nonzero(item_vector)
+   return avg_user + avg_item - avg
 
-def recommendations_by_items(data, person, max_similar_items=7):
+def recommendations_by_items(data, person, predict_items=[], max_similar_items=7, allow_base_line=False):
     user_vector = get_user_vector(data, person)
     recommendations = []
-    zero_items = np.argwhere(user_vector == 0).ravel()
+    if len(predict_items) == 0:
+        predict_items = np.argwhere(user_vector == 0).ravel()
     rated_items = np.argwhere(user_vector != 0).ravel()
-    for i in zero_items:
+    total_rating_avg = np.sum(data)/np.count_nonzero(data)
+    for i in predict_items:
         sum_sim = 0.0
         sum_sim_weight = 0.0
+        item_base_line = 0.0
+        if allow_base_line:
+            item_base_line = base_line_estimation(data, person, item=i, avg=total_rating_avg)
         most_rated_items = sorted(rated_items, key=lambda x: item_sim(data, x, i), reverse=True)
         if len(most_rated_items) > max_similar_items:
             most_rated_items = most_rated_items[0:max_similar_items]
         # print(i, rated_items)
         for j in most_rated_items:
-            sim = item_sim(data, i, j)
+            if i != j:
+                sim = item_sim(data, i, j)
+                if sim > 0:
+                    sum_sim += sim
+                    neighbour_base_line = 0.0
+                    if allow_base_line:
+                        neighbour_base_line = base_line_estimation(data, person, item=j, avg=total_rating_avg)
+                    sum_sim_weight += sim * (user_vector[j] - neighbour_base_line)
+        rating = 0.0
+        if sum_sim > 0:
+            rating = item_base_line + sum_sim_weight / sum_sim
+        recommendations.append((rating, i))
+    recommendations.sort(reverse=True)
+    return recommendations
+
+def recommendations_by_users(data, person, max_similar_users=5):
+    user_vector = get_user_vector(data, person)
+    recommendations = []
+    zero_items = np.argwhere(user_vector == 0).ravel()
+    for i in zero_items:
+        sum_sim = 0.0
+        sum_sim_weight = 0.0
+        scores = [(user_sim(data, person, other_person), other_person)
+                  for other_person in range(len(data))
+                      if other_person != person and data[other_person, i] != 0
+                 ]
+        scores.sort(reverse=True)
+        if len(scores) > max_similar_users:
+            scores = scores[0:max_similar_users]
+        for user_score, user_idx in scores:
+            sim = user_score
             if sim > 0:
                 sum_sim += sim
-                sum_sim_weight += sim * user_vector[j]
+                sum_sim_weight += sim * data[user_idx, i]
         rating = 0.0
         if sum_sim > 0:
             rating = sum_sim_weight / sum_sim
@@ -104,9 +147,46 @@ def recommendations_by_items(data, person, max_similar_items=7):
     recommendations.sort(reverse=True)
     return recommendations
 
+def get_RMSE(data, user):
+    user_vector = get_user_vector(data, user)
+    rated_items = np.argwhere(user_vector != 0).ravel()
+    recs = recommendations_by_items(data, user, rated_items, max_similar_items=10)
+    rmse = 0.0
+    if len(recs) > 0:
+        for r, i in recs:
+            rmse += (user_vector[i] - r) ** 2
+            # print(user_vector[i], r, i)
+        rmse = sqrt(rmse / len(recs))
+    return rmse, recs
+
+# @jit
+def matrix_factorization(R, P, Q, K, steps=5000, alpha=0.0002, beta=0.02):
+    Q = Q.T
+    R_rows, R_cols = R.shape
+    for step in range(steps):
+        for i in range(R_rows):
+            for j in range(R_cols):
+                if R[i][j] > 0:
+                    eij = R[i][j] - np.dot(P[i,:], Q[:,j])
+                    for k in range(K):
+                        p_ik = P[i][k]
+                        q_kj = Q[k][j]
+                        P[i][k] += alpha * (2 * eij * q_kj - beta * p_ik)
+                        Q[k][j] += alpha * (2 * eij * p_ik - beta * q_kj)
+        e = 0.0
+        for i in range(R_rows):
+            for j in range(R_cols):
+                if R[i][j] > 0:
+                    e += (R[i][j] - np.dot(P[i, :], Q[:, j])) ** 2
+                    for k in range(K):
+                        e += (beta/2) * (P[i][k] ** 2) + (Q[k][j] ** 2)
+        if e < 0.001:
+            break
+    return np.dot(P,Q) # P, Q.T
+
 
 def test_recommender():
-    rating_data = gen_data_table(n_users=10, n_items=15)
+    rating_data = gen_data_table(n_users=5, n_items=15)
     print(rating_data)
 
     # print(get_item_vector(rating_data, 1))
@@ -123,6 +203,20 @@ def test_recommender():
 
     print("\n item-item recommendations for user %d: \n" % curr_user,
           recommendations_by_items(rating_data, curr_user, max_similar_items=10))
+    print("\n base line recommendations for user %d: \n" % curr_user,
+          recommendations_by_items(rating_data, curr_user, max_similar_items=10, allow_base_line=True))
+    print("\n RMSE for user %d: \n" % curr_user, get_RMSE(rating_data, curr_user))
+
+    print("\n user-user recommendations for user %d: \n" % curr_user,
+          recommendations_by_users(rating_data, curr_user, max_similar_users=10))
+
+    N, M = rating_data.shape
+    K = 3
+    P = np.random.rand(N, K)
+    Q = np.random.rand(M, K)
+
+    print("\n matrix factorization: \n", matrix_factorization(rating_data, P, Q, K))
+
 
 if __name__ == '__main__':
     test_recommender()
