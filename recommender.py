@@ -1,6 +1,6 @@
 import numpy as np
 from math import sqrt
-#from numba import jit
+from numba import jit
 
 def gen_data_table(n_users, n_items):
     p0 = 0.4
@@ -160,33 +160,35 @@ def get_RMSE(data, user):
     return rmse, recs
 
 # @jit
-def matrix_factorization(R, P, Q, K, steps=5000, alpha=0.0002, beta=0.02):
+def matrix_factorization(R, P, Q, K, steps=2000, alpha=0.0008, beta=0.02):
     Q = Q.T
     R_rows, R_cols = R.shape
+    e = 0.0
     for step in range(steps):
         for i in range(R_rows):
             for j in range(R_cols):
                 if R[i][j] > 0:
-                    eij = R[i][j] - np.dot(P[i,:], Q[:,j])
+                    eij = R[i][j] - np.dot(P[i, :], Q[: ,j])
                     for k in range(K):
                         p_ik = P[i][k]
                         q_kj = Q[k][j]
                         P[i][k] += alpha * (2 * eij * q_kj - beta * p_ik)
                         Q[k][j] += alpha * (2 * eij * p_ik - beta * q_kj)
-        e = 0.0
-        for i in range(R_rows):
-            for j in range(R_cols):
-                if R[i][j] > 0:
-                    e += (R[i][j] - np.dot(P[i, :], Q[:, j])) ** 2
-                    for k in range(K):
-                        e += (beta/2) * (P[i][k] ** 2) + (Q[k][j] ** 2)
-        if e < 0.001:
-            break
+    #     e = 0.0
+    #     for i in range(R_rows):
+    #         for j in range(R_cols):
+    #             if R[i][j] > 0:
+    #                 e += (R[i][j] - np.dot(P[i, :], Q[:, j])) ** 2
+    #                 for k in range(K):
+    #                     e += (beta/2) * (P[i][k] ** 2) + (Q[k][j] ** 2)
+    #     if e < 0.001:
+    #         break
+    # print(e)
     return np.dot(P,Q) # P, Q.T
 
 
 def test_recommender():
-    rating_data = gen_data_table(n_users=5, n_items=15)
+    rating_data = gen_data_table(n_users=10, n_items=18)
     print(rating_data)
 
     # print(get_item_vector(rating_data, 1))
@@ -215,6 +217,7 @@ def test_recommender():
     P = np.random.rand(N, K)
     Q = np.random.rand(M, K)
 
+    #matrix_factorization(rating_data, P, Q, K, steps=-1)
     print("\n matrix factorization: \n", matrix_factorization(rating_data, P, Q, K))
 
 
