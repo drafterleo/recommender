@@ -239,7 +239,7 @@ def test_recommender():
     #matrix_factorization(rating_data, P, Q, K, steps=-1)
     P, Q, step, err = matrix_factorization(data, P, Q, K)
     R = np.dot(P, Q.T)
-    np.set_printoptions(precision=3, suppress=True, linewidth=75)
+    np.set_printoptions(formatter={'float': '{: 0.3f}'.format}, suppress=True, linewidth=75)
     print("\n matrix factorization (err = %f, step = %d, rmse = %f): \n" % (err, step, matrix_rmse(data, R)), R)
 
 

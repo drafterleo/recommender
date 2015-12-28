@@ -1,8 +1,10 @@
-import random
+import random as rnd
+import numpy as np
+
 
 def factorize_number(num, alpha=0.001):
-    p = random.random() * random.randint(1, int(num))
-    q = random.random() * random.randint(1, int(num))
+    p = rnd.random() * rnd.randint(1, int(num))
+    q = rnd.random() * rnd.randint(1, int(num))
     err = num - p*q
     while err ** 2 > 0.0001:
         print ("[num: %f] p = %f, q = %f, p*q = %f, err = %f" % (num, p, q, p*q, err ** 2))
@@ -13,6 +15,6 @@ def factorize_number(num, alpha=0.001):
 
 
 if __name__ == '__main__':
-    print(factorize_number(18.7))
+    print(factorize_number(5))
 
 
