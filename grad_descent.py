@@ -21,6 +21,6 @@ def factorize_number(num, alpha=0.001, K=3):
 
 if __name__ == '__main__':
     np.set_printoptions(formatter={'float': '{: 0.3f}'.format}, suppress=True)
-    print(factorize_number(8))
+    print(factorize_number(80))
 
 
