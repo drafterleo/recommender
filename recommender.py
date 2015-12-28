@@ -148,6 +148,16 @@ def recommendations_by_users(data, person, max_similar_users=5):
     recommendations.sort(reverse=True)
     return recommendations
 
+
+def recommendations_by_matrix(data, matrix, user):
+    recommendations = []
+    for i in range(len(data[user])):
+        if data[user][i] == 0.:
+            recommendations.append((matrix[user][i], i))
+    recommendations.sort(reverse=True)
+    return recommendations
+
+
 def get_RMSE(data, user):
     user_vector = get_user_vector(data, user)
     rated_items = np.argwhere(user_vector != 0).ravel()
@@ -171,6 +181,8 @@ def matrix_rmse(src_matrix, clc_matrix):
 
 
 # https://gist.github.com/jhemann/5584536
+#http://www.quuxlabs.com/blog/2010/09/matrix-factorization-a-simple-tutorial-and-implementation-in-python/
+
 @autojit(locals={'step': int_, 'e': double, 'alpha': double})
 def matrix_factorization(R, P, Q, K):
     steps = 5000
@@ -191,19 +203,20 @@ def matrix_factorization(R, P, Q, K):
                         qjk = Q[j,k]
                         P[i,k] += alpha * (2 * eij * qjk - beta * pik)
                         Q[j,k] += alpha * (2 * eij * pik - beta * qjk)
-        e = 0.0
-        for i in range(N):
-            for j in range(M):
-                if R[i,j] > 0:
-                    rij = R[i,j]
-                    for p in range(K):
-                        rij -= P[i,p] * Q[j,p]
-                    e = e + rij * rij
-                    for k in range(K):
-                        e += half_beta * (P[i,k]*P[i,k] + Q[j,k]*Q[j,k])
-        if e < 0.001:
-            break
+        # e = 0.0
+        # for i in range(N):
+        #     for j in range(M):
+        #         if R[i,j] > 0:
+        #             rij = R[i,j]
+        #             for p in range(K):
+        #                 rij -= P[i,p] * Q[j,p]
+        #             e = e + rij * rij
+        #             for k in range(K):
+        #                 e += half_beta * (P[i,k]*P[i,k] + Q[j,k]*Q[j,k])
+        # if e < 0.001:
+        #     break
     return P, Q, step + 1, e
+
 
 def test_recommender():
     data = gen_data_table(n_users=20, n_items=40)
@@ -239,6 +252,10 @@ def test_recommender():
     #matrix_factorization(rating_data, P, Q, K, steps=-1)
     P, Q, step, err = matrix_factorization(data, P, Q, K)
     R = np.dot(P, Q.T)
+
+    print("\n MF recommendations for user %d: \n" % curr_user,
+          recommendations_by_matrix(data, R, curr_user))
+
     np.set_printoptions(formatter={'float': '{: 0.3f}'.format}, suppress=True, linewidth=75)
     print("\n matrix factorization (err = %f, step = %d, rmse = %f): \n" % (err, step, matrix_rmse(data, R)), R)
 
