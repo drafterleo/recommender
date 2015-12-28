@@ -174,7 +174,7 @@ def matrix_rmse(src_matrix, clc_matrix):
 @autojit(locals={'step': int_, 'e': double, 'alpha': double})
 def matrix_factorization(R, P, Q, K):
     steps = 5000
-    alpha = 0.0002
+    alpha = 0.0001
     beta = 0.02
     half_beta = beta / 2.0
     N, M = R.shape

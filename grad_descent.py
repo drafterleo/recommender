@@ -6,9 +6,8 @@ def factorize_number(num, alpha=0.001):
     err = num - p*q
     while err ** 2 > 0.0001:
         print ("[num: %f] p = %f, q = %f, p*q = %f, err = %f" % (num, p, q, p*q, err ** 2))
-        pt = p
         p += 2*err*q*alpha
-        q += 2*err*pt*alpha
+        q += 2*err*p*alpha
         err = num - p*q
     return p, q, p*q, err ** 2
 
