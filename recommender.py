@@ -197,13 +197,13 @@ def matrix_factorization(R, P, Q, K):
     beta = 0.02
     half_beta = beta / 2.0
     N, M = R.shape
-    _, r_bias, c_bias = matrix_means(R)
+    R_mean, r_bias, c_bias = matrix_means(R)
     e = 0.0
     for step in range(steps):
         for i in range(N):
             for j in range(M):
                 if R[i,j] > 0:
-                    eij = R[i,j] #- (r_bias[i] + c_bias[j])
+                    eij = R[i,j] - (R_mean + r_bias[i] + c_bias[j])
                     for p in range(K):
                         eij -= P[i,p] * Q[j,p]
                     for k in range(K):
@@ -223,11 +223,16 @@ def matrix_factorization(R, P, Q, K):
         #                 e += half_beta * (P[i,k]**2 + Q[j,k]**2)
         # if e < 0.001:
         #     break
-    return P, Q, step + 1, e
+    eR = np.dot(P, Q.T)
+    for i in range(N):
+        for j in range(M):
+            eR[i, j] += (R_mean + r_bias[i] + c_bias[j])
+
+    return eR, step + 1, e
 
 
 def test_recommender():
-    data = gen_data_table(n_users=20, n_items=40)
+    data = gen_data_table(n_users=50, n_items=80)
     np.set_printoptions(linewidth=170)
     print(data)
 
@@ -258,8 +263,8 @@ def test_recommender():
     Q = np.random.rand(M, K)
 
     #matrix_factorization(rating_data, P, Q, K, steps=-1)
-    P, Q, step, err = matrix_factorization(data, P, Q, K)
-    R = np.dot(P, Q.T)
+    R, step, err = matrix_factorization(data, P, Q, K)
+    #R = np.dot(P, Q.T)
 
     print("\n MF recommendations for user %d: \n" % curr_user,
           recommendations_by_matrix(data, R, curr_user))
