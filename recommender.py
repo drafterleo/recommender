@@ -180,8 +180,15 @@ def matrix_rmse(src_matrix, clc_matrix):
     return sqrt(rmse / src_matrix.size)
 
 
+def matrix_means(data):
+    avg = np.sum(data)/np.count_nonzero(data)
+    row_bias = [np.sum(data[i])/np.count_nonzero(data[i]) - avg for i in range(len(data))]
+    col_bias = [np.sum(data[:,i])/np.count_nonzero(data[:,i]) - avg for i in range(len(data[0]))]
+    # print("\n", avg, "\n", row_bias, "\n", col_bias)
+    return avg, row_bias, col_bias
+
 # https://gist.github.com/jhemann/5584536
-#http://www.quuxlabs.com/blog/2010/09/matrix-factorization-a-simple-tutorial-and-implementation-in-python/
+# http://www.quuxlabs.com/blog/2010/09/matrix-factorization-a-simple-tutorial-and-implementation-in-python/
 
 @autojit(locals={'step': int_, 'e': double, 'alpha': double})
 def matrix_factorization(R, P, Q, K):
@@ -190,12 +197,13 @@ def matrix_factorization(R, P, Q, K):
     beta = 0.02
     half_beta = beta / 2.0
     N, M = R.shape
+    _, r_bias, c_bias = matrix_means(R)
     e = 0.0
     for step in range(steps):
         for i in range(N):
             for j in range(M):
                 if R[i,j] > 0:
-                    eij = R[i,j]
+                    eij = R[i,j] #- (r_bias[i] + c_bias[j])
                     for p in range(K):
                         eij -= P[i,p] * Q[j,p]
                     for k in range(K):
@@ -212,7 +220,7 @@ def matrix_factorization(R, P, Q, K):
         #                 rij -= P[i,p] * Q[j,p]
         #             e = e + rij * rij
         #             for k in range(K):
-        #                 e += half_beta * (P[i,k]*P[i,k] + Q[j,k]*Q[j,k])
+        #                 e += half_beta * (P[i,k]**2 + Q[j,k]**2)
         # if e < 0.001:
         #     break
     return P, Q, step + 1, e
