@@ -192,7 +192,7 @@ def matrix_means(data):
 
 @autojit(locals={'step': int_, 'e': double, 'alpha': double})
 def matrix_factorization(R, P, Q, K):
-    steps = 5000
+    steps = 4000
     alpha = 0.0001
     beta = 0.02
     half_beta = beta / 2.0
@@ -258,7 +258,7 @@ def test_recommender():
           recommendations_by_users(data, curr_user, max_similar_users=10))
 
     N, M = data.shape
-    K = 8
+    K = 10
     P = np.random.rand(N, K)
     Q = np.random.rand(M, K)
 
